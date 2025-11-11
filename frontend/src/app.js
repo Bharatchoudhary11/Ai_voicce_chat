@@ -1,0 +1,149 @@
+import { subscribe, setState, getState } from "./store.js";
+import {
+  fetchRequests,
+  fetchKnowledgeBase,
+  submitResponse,
+  markTimeout,
+} from "./api/mockApi.js";
+import { renderRequestList } from "./components/RequestList.js";
+import { renderRequestDetails } from "./components/RequestDetails.js";
+import { renderKnowledgeBase } from "./components/KnowledgeBaseView.js";
+import { renderActivityLog } from "./components/ActivityLog.js";
+
+const appEl = document.getElementById("app");
+
+async function bootstrap() {
+  try {
+    const [requests, knowledgeBase] = await Promise.all([
+      fetchRequests(),
+      fetchKnowledgeBase(),
+    ]);
+
+    setState({
+      requests,
+      knowledgeBase,
+      selectedRequestId: requests[0]?.id ?? null,
+      activityLog: buildInitialActivityLog(requests),
+      appReady: true,
+    });
+  } catch (err) {
+    console.error("Failed to bootstrap app", err);
+    appEl.innerHTML =
+      '<main class="empty-state">Failed to load supervisor console.</main>';
+  }
+}
+
+subscribe("root", (state) => {
+  if (!state.appReady) {
+    appEl.innerHTML =
+      '<main class="empty-state">Loading supervisor console...</main>';
+    return;
+  }
+
+  appEl.innerHTML = `
+    <main class="layout">
+      <section class="panel">
+        <header>
+          <h2>Pending Requests</h2>
+        </header>
+        <div class="panel-body" id="request-list"></div>
+      </section>
+      <section class="panel">
+        <header>
+          <h2>Request Details</h2>
+        </header>
+        <div class="panel-body" id="request-details"></div>
+      </section>
+      <section class="panel">
+        <header>
+          <h2>Knowledge Base</h2>
+        </header>
+        <div class="panel-body" id="knowledge-base"></div>
+        <div class="panel-footer" id="activity-log"></div>
+      </section>
+    </main>
+  `;
+  renderRequestList(document.getElementById("request-list"), state, {
+    onSelect: (id) => setState({ selectedRequestId: id }),
+  });
+  renderRequestDetails(document.getElementById("request-details"), state, {
+    onRespond: handleSupervisorResponse,
+    onTimeout: handleTimeout,
+  });
+  renderKnowledgeBase(document.getElementById("knowledge-base"), state);
+  renderActivityLog(document.getElementById("activity-log"), state);
+});
+
+async function handleSupervisorResponse(payload) {
+  const requestId = getState().selectedRequestId;
+  if (!requestId) return;
+  setState({ isSaving: true });
+  try {
+    const updatedRequest = await submitResponse(requestId, payload);
+    await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
+    pushActivity(
+      `Supervisor responded to ${updatedRequest.customerName} (${updatedRequest.id}).`,
+      "success"
+    );
+    console.log(
+      `[AI -> ${updatedRequest.customerName}] Sending answer: ${payload.answer}`
+    );
+  } catch (err) {
+    console.error("Failed to submit response", err);
+    pushActivity(`Failed to submit response: ${err.message}`, "error");
+    setState({ isSaving: false });
+  }
+}
+
+async function handleTimeout() {
+  const requestId = getState().selectedRequestId;
+  if (!requestId) return;
+  setState({ isSaving: true });
+  try {
+    const updatedRequest = await markTimeout(requestId);
+    await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
+    pushActivity(`Marked ${updatedRequest.id} as unresolved after timeout.`, "warn");
+    console.log(
+      `[AI -> ${updatedRequest.customerName}] Let me check with my supervisor... still waiting.`
+    );
+  } catch (err) {
+    console.error("Failed to mark timeout", err);
+    pushActivity(`Failed to mark timeout: ${err.message}`, "error");
+    setState({ isSaving: false });
+  }
+}
+
+async function refreshData(partialState = {}) {
+  const [requests, knowledgeBase] = await Promise.all([
+    fetchRequests(),
+    fetchKnowledgeBase(),
+  ]);
+  setState({ requests, knowledgeBase, ...partialState });
+}
+
+function buildInitialActivityLog(requests) {
+  return requests
+    .map((req) => ({
+      id: `seed-${req.id}`,
+      message: `${req.customerName} escalated a ${req.channel} question (${req.id}).`,
+      timestamp: req.escalatedAt ?? req.createdAt,
+      tone: "info",
+    }))
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+}
+
+function pushActivity(message, tone = "info") {
+  const current = getState().activityLog ?? [];
+  const entry = {
+    id:
+      typeof crypto !== "undefined" && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `log-${Date.now()}-${Math.random()}`,
+    message,
+    timestamp: new Date().toISOString(),
+    tone,
+  };
+  setState({ activityLog: [entry, ...current].slice(0, 50) });
+}
+
+bootstrap();
