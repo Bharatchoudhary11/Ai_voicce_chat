@@ -9,7 +9,7 @@ frontend/
   src/
     app.js             # bootstraps the dashboard and wires components
     store.js           # minimal state container + pub/sub helpers
-    api/mockApi.js     # temporary in-memory API used until backend lands
+    api/mockApi.js     # swappable data layer (mocked for now, live-ready later)
     components/
       RequestList.js
       RequestDetails.js
@@ -33,7 +33,22 @@ The frontend assumes the following REST-ish endpoints (easy to swap out later):
 - `POST /api/help-requests/:id/timeout`
 - `GET /api/knowledge-base`
 
-These requests are issued via `src/api/mockApi.js`, which now proxies to the FastAPI backend. The base URL is taken from the global `window.__SUPERVISOR_API_BASE__` (set to `http://localhost:8000` by default in `index.html`). Override it before loading the app if your backend lives elsewhere, e.g.:
+### API modes
+
+By default the dashboard boots in **mock** mode so you can explore the workflow without a backend. Mock data is seeded on first load and then saved to `localStorage`, so you can refresh and keep working through a realistic queue of escalations.
+
+When the backend is ready flip the runtime global before the script tag in `index.html`:
+
+```html
+<script>
+  window.__SUPERVISOR_API_MODE__ = "live"; // or set via your bundler
+  window.__SUPERVISOR_API_BASE__ = "http://localhost:8000"; // FastAPI default
+</script>
+```
+
+In `live` mode the frontend calls the REST endpoints described above. Leaving `window.__SUPERVISOR_API_MODE__` unset (or explicitly `mock`) keeps everything in-memory.
+
+If the backend lives elsewhere, override `window.__SUPERVISOR_API_BASE__` with the appropriate host before the SPA loads, e.g.:
 
 ```html
 <script>
@@ -50,4 +65,4 @@ curl -X POST http://localhost:8000/api/help-requests \
   -d '{"customer_name":"Alex","channel":"phone","question":"Do you do bridal trials?","customer_contact":"sms:+155555501"}'
 ```
 
-Each response you submit via the dashboard will automatically text the simulated customer and add a knowledge-base entry.
+Each response you submit via the dashboard will automatically text the simulated customer and add a knowledge-base entry. In mock mode the "texts" and lifecycle updates happen inside the app state; once connected to the backend the same calls will hit the LiveKit-driven service.
