@@ -14,6 +14,8 @@ __pycache__/
 .venv/
 .env
 .env.*
+backend/.venv/
+backend/data/*.db
 
 # Editor & OS noise
 .DS_Store
