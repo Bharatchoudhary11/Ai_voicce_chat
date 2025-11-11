@@ -69,7 +69,7 @@ Everything is modular so swapping the mock transport for real SMS or ticketing l
    uvicorn app.main:app --reload
    ```
 
-The FastAPI docs will be at http://localhost:8000/docs. Point the frontend environment at `http://localhost:8000`.
+The FastAPI docs will be at http://localhost:8000/docs. The frontend defaults to `http://localhost:8000`; adjust `Settings.allowed_origins` (or set `ALLOWED_ORIGINS='["https://your-ui"]'` in your env) if you need to serve from a different origin.
 
 ### Tests
 

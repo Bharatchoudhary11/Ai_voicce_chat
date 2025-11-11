@@ -14,11 +14,12 @@ const appEl = document.getElementById("app");
 
 async function bootstrap() {
   try {
-    const [requests, knowledgeBase] = await Promise.all([
+    const [requestPayload, kbPayload] = await Promise.all([
       fetchRequests(),
       fetchKnowledgeBase(),
     ]);
-
+    const requests = requestPayload.map(mapHelpRequest);
+    const knowledgeBase = kbPayload.map(mapKnowledgeBaseEntry);
     setState({
       requests,
       knowledgeBase,
@@ -79,7 +80,7 @@ async function handleSupervisorResponse(payload) {
   if (!requestId) return;
   setState({ isSaving: true });
   try {
-    const updatedRequest = await submitResponse(requestId, payload);
+    const updatedRequest = mapHelpRequest(await submitResponse(requestId, payload));
     await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
     pushActivity(
       `Supervisor responded to ${updatedRequest.customerName} (${updatedRequest.id}).`,
@@ -100,7 +101,7 @@ async function handleTimeout() {
   if (!requestId) return;
   setState({ isSaving: true });
   try {
-    const updatedRequest = await markTimeout(requestId);
+    const updatedRequest = mapHelpRequest(await markTimeout(requestId));
     await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
     pushActivity(`Marked ${updatedRequest.id} as unresolved after timeout.`, "warn");
     console.log(
@@ -114,11 +115,15 @@ async function handleTimeout() {
 }
 
 async function refreshData(partialState = {}) {
-  const [requests, knowledgeBase] = await Promise.all([
+  const [requestPayload, kbPayload] = await Promise.all([
     fetchRequests(),
     fetchKnowledgeBase(),
   ]);
-  setState({ requests, knowledgeBase, ...partialState });
+  setState({
+    requests: requestPayload.map(mapHelpRequest),
+    knowledgeBase: kbPayload.map(mapKnowledgeBaseEntry),
+    ...partialState,
+  });
 }
 
 function buildInitialActivityLog(requests) {
@@ -144,6 +149,41 @@ function pushActivity(message, tone = "info") {
     tone,
   };
   setState({ activityLog: [entry, ...current].slice(0, 50) });
+}
+
+function mapHelpRequest(raw) {
+  return {
+    id: raw.id,
+    customerName: raw.customer_name ?? raw.customerName ?? "Unknown",
+    customerContact: raw.customer_contact ?? raw.customerContact ?? null,
+    channel: raw.channel,
+    question: raw.question,
+    status: raw.status,
+    answer: raw.answer,
+    notes: raw.notes,
+    createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
+    escalatedAt: raw.escalated_at ?? raw.escalatedAt ?? raw.created_at ?? raw.createdAt,
+    resolvedAt: raw.resolved_at ?? raw.resolvedAt ?? null,
+    history: (raw.history || []).map((entry) => {
+      const ts = entry.timestamp ? new Date(entry.timestamp) : new Date();
+      const safeTimestamp = Number.isNaN(ts.getTime()) ? new Date() : ts;
+      return {
+        timestamp: safeTimestamp.toISOString(),
+        message: entry.message,
+      };
+    }),
+  };
+}
+
+function mapKnowledgeBaseEntry(raw) {
+  return {
+    id: raw.id,
+    sourceRequestId: raw.source_request_id ?? raw.sourceRequestId,
+    topic: raw.topic,
+    question: raw.question,
+    answer: raw.answer,
+    updatedAt: raw.updated_at ?? raw.updatedAt ?? new Date().toISOString(),
+  };
 }
 
 bootstrap();

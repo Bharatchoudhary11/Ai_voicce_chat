@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from ..models import RequestStatus
+from ..models import HistoryEntry, RequestStatus
 
 
 class HelpRequestCreate(BaseModel):
@@ -34,7 +34,7 @@ class HelpRequestView(BaseModel):
     created_at: datetime
     escalated_at: datetime
     resolved_at: Optional[datetime]
-    history: List[dict]
+    history: List[HistoryEntry]
 
     class Config:
         from_attributes = True

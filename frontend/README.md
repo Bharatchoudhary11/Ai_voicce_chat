@@ -33,4 +33,21 @@ The frontend assumes the following REST-ish endpoints (easy to swap out later):
 - `POST /api/help-requests/:id/timeout`
 - `GET /api/knowledge-base`
 
-For now these methods are implemented inside `src/api/mockApi.js`. Replace that module with real `fetch` calls when the backend exists.
+These requests are issued via `src/api/mockApi.js`, which now proxies to the FastAPI backend. The base URL is taken from the global `window.__SUPERVISOR_API_BASE__` (set to `http://localhost:8000` by default in `index.html`). Override it before loading the app if your backend lives elsewhere, e.g.:
+
+```html
+<script>
+  window.__SUPERVISOR_API_BASE__ = "https://staging.your-domain.com";
+</script>
+```
+
+### Seeding data
+Create escalated tickets from the command line while the backend is running:
+
+```bash
+curl -X POST http://localhost:8000/api/help-requests \
+  -H "Content-Type: application/json" \
+  -d '{"customer_name":"Alex","channel":"phone","question":"Do you do bridal trials?","customer_contact":"sms:+155555501"}'
+```
+
+Each response you submit via the dashboard will automatically text the simulated customer and add a knowledge-base entry.
