@@ -6,7 +6,7 @@ from enum import Enum
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.sqlite import JSON as SQLiteJSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -36,6 +36,8 @@ class HelpRequestORM(Base):
     escalated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     history: Mapped[list] = mapped_column(SQLiteJSON, default=list)
+    follow_up_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    follow_up_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False)
 
     responses: Mapped[List["SupervisorResponseORM"]] = relationship(
         back_populates="request", cascade="all, delete-orphan"
@@ -88,6 +90,8 @@ class HelpRequest(BaseModel):
     escalated_at: datetime
     resolved_at: Optional[datetime]
     history: List[HistoryEntry] = Field(default_factory=list)
+    follow_up_at: Optional[datetime] = None
+    follow_up_reminder_sent: bool = False
 
     class Config:
         from_attributes = True

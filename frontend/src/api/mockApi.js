@@ -54,6 +54,8 @@ function createMockApi() {
       ? structuredClone(value)
       : JSON.parse(JSON.stringify(value));
 
+  const DEFAULT_FOLLOW_UP_MINUTES = 30;
+
   const defaultState = {
     helpRequests: [
       {
@@ -68,6 +70,8 @@ function createMockApi() {
         createdAt: minutesAgo(55),
         escalatedAt: minutesAgo(53),
         resolvedAt: null,
+        followUpAt: null,
+        followUpReminderSent: false,
         history: [
           {
             timestamp: minutesAgo(55),
@@ -92,6 +96,8 @@ function createMockApi() {
         createdAt: minutesAgo(32),
         escalatedAt: minutesAgo(31),
         resolvedAt: null,
+        followUpAt: null,
+        followUpReminderSent: false,
         history: [
           {
             timestamp: minutesAgo(32),
@@ -112,6 +118,8 @@ function createMockApi() {
         createdAt: minutesAgo(180),
         escalatedAt: minutesAgo(178),
         resolvedAt: minutesAgo(170),
+        followUpAt: null,
+        followUpReminderSent: false,
         history: [
           {
             timestamp: minutesAgo(180),
@@ -238,6 +246,10 @@ function createMockApi() {
     const answer = (payload.answer || "").trim();
     const topic = (payload.topic || "General").trim();
     const notes = (payload.notes || "").trim();
+    const followUpMinutes = Number.parseInt(payload.follow_up_minutes, 10);
+    const effectiveFollowUpMinutes = Number.isFinite(followUpMinutes)
+      ? Math.max(5, followUpMinutes)
+      : DEFAULT_FOLLOW_UP_MINUTES;
 
     request.history = request.history || [];
     request.history.unshift({
@@ -251,6 +263,20 @@ function createMockApi() {
     request.answer = answer;
     request.status = unresolved ? "unresolved" : "resolved";
     request.resolvedAt = unresolved ? null : timestamp;
+    request.followUpReminderSent = false;
+
+    if (unresolved) {
+      const followUpDeadline = new Date(
+        Date.now() + effectiveFollowUpMinutes * 60 * 1000
+      ).toISOString();
+      request.followUpAt = followUpDeadline;
+      request.history.unshift({
+        timestamp,
+        message: `Follow-up reminder scheduled for ${followUpDeadline}.`,
+      });
+    } else {
+      request.followUpAt = null;
+    }
 
     if (!unresolved && answer) {
       upsertKnowledgeBaseEntry({ request, topic, answer });
@@ -266,10 +292,19 @@ function createMockApi() {
     const timestamp = new Date().toISOString();
     request.status = "unresolved";
     request.resolvedAt = null;
+    request.followUpReminderSent = false;
+    const followUpDeadline = new Date(
+      Date.now() + DEFAULT_FOLLOW_UP_MINUTES * 60 * 1000
+    ).toISOString();
+    request.followUpAt = followUpDeadline;
     request.history = request.history || [];
     request.history.unshift({
       timestamp,
       message: "Supervisor marked timeout. Awaiting follow-up.",
+    });
+    request.history.unshift({
+      timestamp,
+      message: `Follow-up reminder scheduled for ${followUpDeadline}.`,
     });
     persist();
     return clone(request);
