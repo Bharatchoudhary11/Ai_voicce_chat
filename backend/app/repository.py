@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Iterable, Optional
 
 from sqlalchemy import select
@@ -61,8 +62,6 @@ class HelpRequestRepository:
 
     def mark_timeout(self, request: HelpRequestORM) -> HelpRequestORM:
         request.status = RequestStatus.unresolved.value
-        from datetime import datetime
-
         request.resolved_at = datetime.utcnow()
         self.add_history(request, "Marked unresolved after timeout.")
         return request
@@ -93,6 +92,36 @@ class HelpRequestRepository:
         self.session.add(response)
         self.session.flush()
         return response
+
+    def schedule_follow_up(self, request: HelpRequestORM, follow_up_at: datetime) -> None:
+        request.follow_up_at = follow_up_at
+        request.follow_up_reminder_sent = False
+        self.add_history(
+            request,
+            f"Follow-up reminder scheduled for {follow_up_at.isoformat()}.",
+        )
+
+    def clear_follow_up(self, request: HelpRequestORM) -> None:
+        request.follow_up_at = None
+        request.follow_up_reminder_sent = False
+        self.session.add(request)
+
+    def list_due_followups(self, current_time: datetime) -> Iterable[HelpRequestORM]:
+        stmt = (
+            select(HelpRequestORM)
+            .where(
+                HelpRequestORM.status == RequestStatus.unresolved.value,
+                HelpRequestORM.follow_up_at.is_not(None),
+                HelpRequestORM.follow_up_reminder_sent.is_(False),
+                HelpRequestORM.follow_up_at <= current_time,
+            )
+            .order_by(HelpRequestORM.follow_up_at.asc())
+        )
+        return self.session.scalars(stmt).all()
+
+    def mark_follow_up_reminder_sent(self, request: HelpRequestORM) -> None:
+        request.follow_up_reminder_sent = True
+        self.session.add(request)
 
 
 class KnowledgeBaseRepository:

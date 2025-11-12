@@ -80,12 +80,35 @@ async function handleSupervisorResponse(payload) {
   if (!requestId) return;
   setState({ isSaving: true });
   try {
-    const updatedRequest = mapHelpRequest(await submitResponse(requestId, payload));
-    await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
-    pushActivity(
-      `Supervisor responded to ${updatedRequest.customerName} (${updatedRequest.id}).`,
-      "success"
+    const { followUpMinutes, ...restPayload } = payload;
+    const apiPayload = {
+      answer: restPayload.answer,
+      topic: restPayload.topic,
+      unresolved: restPayload.unresolved,
+      notes: restPayload.notes,
+    };
+    if (restPayload.unresolved) {
+      apiPayload.follow_up_minutes = followUpMinutes ?? null;
+    }
+    const updatedRequest = mapHelpRequest(
+      await submitResponse(requestId, apiPayload)
     );
+    await refreshData({ selectedRequestId: updatedRequest.id, isSaving: false });
+    if (restPayload.unresolved) {
+      const minutesCopy = followUpMinutes ?? null;
+      const followUpSummary = minutesCopy
+        ? `${minutesCopy} minute${minutesCopy === 1 ? "" : "s"}`
+        : "a little while";
+      pushActivity(
+        `Requested follow-up from ${updatedRequest.customerName} (${updatedRequest.id}) within ${followUpSummary}.`,
+        "warn"
+      );
+    } else {
+      pushActivity(
+        `Supervisor responded to ${updatedRequest.customerName} (${updatedRequest.id}).`,
+        "success"
+      );
+    }
     console.log(
       `[AI -> ${updatedRequest.customerName}] Sending answer: ${payload.answer}`
     );
@@ -172,6 +195,9 @@ function mapHelpRequest(raw) {
         message: entry.message,
       };
     }),
+    followUpAt: raw.follow_up_at ?? raw.followUpAt ?? null,
+    followUpReminderSent:
+      raw.follow_up_reminder_sent ?? raw.followUpReminderSent ?? false,
   };
 }
 

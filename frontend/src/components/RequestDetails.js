@@ -16,6 +16,20 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
       ? "Resolved"
       : "Marked unresolved";
 
+  const followUpStatusCopy = request.followUpReminderSent
+    ? "Reminder sent"
+    : request.followUpAt
+    ? "Awaiting reminder"
+    : "Not scheduled";
+
+  const followUpDefaultMinutes = (() => {
+    if (!request.followUpAt) return 30;
+    const msDiff = new Date(request.followUpAt).getTime() - Date.now();
+    const minutes = Math.round(msDiff / 60000);
+    if (!Number.isFinite(minutes)) return 30;
+    return Math.max(5, Math.abs(minutes));
+  })();
+
   container.innerHTML = `
     <article class="request-detail">
       <header class="request-detail__header">
@@ -43,6 +57,16 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
           <div>
             <dt>Status</dt>
             <dd>${statusCopy}</dd>
+          </div>
+          <div>
+            <dt>Follow-up due</dt>
+            <dd>${
+              request.followUpAt ? formatTimestamp(request.followUpAt) : "—"
+            }</dd>
+          </div>
+          <div>
+            <dt>Follow-up status</dt>
+            <dd>${followUpStatusCopy}</dd>
           </div>
         </dl>
       </section>
@@ -89,6 +113,19 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
             This request is still unresolved (timeout or needs callback)
           </label>
 
+          <label data-followup-field>
+            <span>Follow-up window (minutes)</span>
+            <input
+              type="number"
+              name="followUpMinutes"
+              min="5"
+              max="720"
+              step="5"
+              value="${followUpDefaultMinutes}"
+              ${disableInputs ? "disabled" : ""}
+            />
+          </label>
+
           <label>
             <span>Internal notes</span>
             <textarea
@@ -122,6 +159,8 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
   const timeoutBtn = container.querySelector("[data-timeout]");
   const unresolvedCheckbox = form.querySelector('input[name="unresolved"]');
   const answerField = form.querySelector('textarea[name="answer"]');
+  const followUpLabel = form.querySelector('[data-followup-field]');
+  const followUpField = form.querySelector('input[name="followUpMinutes"]');
 
   const toggleAnswerState = () => {
     if (unresolvedCheckbox.checked) {
@@ -131,8 +170,21 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
     }
   };
 
+  const toggleFollowUpField = () => {
+    if (!followUpLabel || !followUpField) return;
+    if (unresolvedCheckbox.checked) {
+      followUpLabel.style.display = "block";
+      followUpField.removeAttribute("disabled");
+    } else {
+      followUpLabel.style.display = "none";
+      followUpField.setAttribute("disabled", "disabled");
+    }
+  };
+
   unresolvedCheckbox.addEventListener("change", toggleAnswerState);
+  unresolvedCheckbox.addEventListener("change", toggleFollowUpField);
   toggleAnswerState();
+  toggleFollowUpField();
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
@@ -142,6 +194,8 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
     const answer = (formData.get("answer") || "").trim();
     const topic = (formData.get("topic") || "").trim();
     const notes = (formData.get("notes") || "").trim();
+    const followUpValue = (formData.get("followUpMinutes") || "").toString().trim();
+    const followUpMinutes = followUpValue ? Number.parseInt(followUpValue, 10) : null;
 
     if (!unresolved && !answer) {
       form.querySelector(".form-hint").textContent =
@@ -154,10 +208,15 @@ export function renderRequestDetails(container, state, { onRespond, onTimeout })
       topic: topic || "General",
       unresolved,
       notes,
+      followUpMinutes: unresolved ? followUpMinutes : null,
     });
     const reset = () => {
       form.reset();
       toggleAnswerState();
+      if (followUpField) {
+        followUpField.value = `${followUpDefaultMinutes}`;
+      }
+      toggleFollowUpField();
       form.querySelector(".form-hint").textContent =
         "Tip: Answers automatically text the customer and add to the knowledge base if marked resolved.";
     };

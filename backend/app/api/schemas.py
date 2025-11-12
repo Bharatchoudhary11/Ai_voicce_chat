@@ -20,6 +20,7 @@ class SupervisorResponseCreate(BaseModel):
     topic: Optional[str] = None
     unresolved: bool = False
     notes: Optional[str] = None
+    follow_up_minutes: Optional[int] = Field(default=None, ge=1)
 
 
 class HelpRequestView(BaseModel):
@@ -35,6 +36,8 @@ class HelpRequestView(BaseModel):
     escalated_at: datetime
     resolved_at: Optional[datetime]
     history: List[HistoryEntry]
+    follow_up_at: Optional[datetime]
+    follow_up_reminder_sent: bool
 
     class Config:
         from_attributes = True

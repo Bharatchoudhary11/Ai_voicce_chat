@@ -55,17 +55,24 @@ def submit_response(
 ):
     service = _service(db)
     try:
-        updated, kb_entry = service.record_response(request_id, **payload.dict())
+        updated, kb_entry = service.record_response(
+            request_id,
+            **payload.dict(),
+        )
     except ValueError as exc:  # pragma: no cover
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return updated
 
 
 @router.post("/help-requests/{request_id}/timeout", response_model=HelpRequestView)
-def timeout_request(request_id: str, db: Session = Depends(get_db)):
+def timeout_request(
+    request_id: str,
+    follow_up_minutes: int | None = None,
+    db: Session = Depends(get_db),
+):
     service = _service(db)
     try:
-        return service.mark_timeout(request_id)
+        return service.mark_timeout(request_id, follow_up_minutes=follow_up_minutes)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
@@ -74,3 +81,10 @@ def timeout_request(request_id: str, db: Session = Depends(get_db)):
 def list_knowledge_base(db: Session = Depends(get_db)):
     service = _service(db)
     return service.list_knowledge_base()
+
+
+@router.post("/help-requests/follow-ups/dispatch")
+def dispatch_follow_ups(db: Session = Depends(get_db)) -> dict[str, int]:
+    service = _service(db)
+    sent = service.send_due_follow_up_reminders()
+    return {"sent": sent}
