@@ -9,10 +9,57 @@
   <body>
     <div id="app"></div>
     <script>
-      window.__SUPERVISOR_API_MODE__ =
-        window.__SUPERVISOR_API_MODE__ || "mock";
-      window.__SUPERVISOR_API_BASE__ =
-        window.__SUPERVISOR_API_BASE__ || "http://localhost:8000";
+      (function () {
+        const params = new URLSearchParams(window.location.search);
+
+        const safeStorage = {
+          get(key) {
+            try {
+              return window.localStorage.getItem(key);
+            } catch (err) {
+              console.warn("Unable to read from localStorage", err);
+              return null;
+            }
+          },
+          set(key, value) {
+            try {
+              window.localStorage.setItem(key, value);
+            } catch (err) {
+              console.warn("Unable to persist to localStorage", err);
+            }
+          },
+        };
+
+        const storageModeKey = "supervisor-api-mode";
+        const storageBaseKey = "supervisor-api-base";
+
+        const storedMode = safeStorage.get(storageModeKey);
+        const paramMode = params.get("mode");
+        const resolvedModeRaw =
+          paramMode ||
+          storedMode ||
+          window.__SUPERVISOR_API_MODE__ ||
+          "live";
+        const resolvedMode = String(resolvedModeRaw).toLowerCase();
+
+        if (paramMode !== null || storedMode === null) {
+          safeStorage.set(storageModeKey, resolvedMode);
+        }
+        window.__SUPERVISOR_API_MODE__ = resolvedMode;
+
+        const storedBase = safeStorage.get(storageBaseKey);
+        const paramBase = params.get("apiBase");
+        const resolvedBase =
+          paramBase ||
+          storedBase ||
+          window.__SUPERVISOR_API_BASE__ ||
+          "http://localhost:8000";
+
+        if (paramBase !== null || storedBase === null) {
+          safeStorage.set(storageBaseKey, resolvedBase);
+        }
+        window.__SUPERVISOR_API_BASE__ = resolvedBase;
+      })();
     </script>
     <script type="module" src="src/app.js"></script>
   </body>

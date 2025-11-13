@@ -35,24 +35,16 @@ The frontend assumes the following REST-ish endpoints (easy to swap out later):
 
 ### API modes
 
-By default the dashboard boots in **mock** mode so you can explore the workflow without a backend. Mock data is seeded on first load and then saved to `localStorage`, so you can refresh and keep working through a realistic queue of escalations.
+By default the dashboard now boots in **live** mode so it talks to the FastAPI backend as soon as it is available. The entry point stores your preference in `localStorage`, so once you toggle the mode it will stick across refreshes.
 
-When the backend is ready flip the runtime global before the script tag in `index.html`:
+To force a mode explicitly, append a query string when you load the dashboard (e.g. `http://localhost:5173/?mode=mock`). You can also persist a custom API host via `?apiBase=https://staging.example.com`. These values are cached locally, so once you set them you can remove the query parameters on subsequent visits.
+
+If you are bundling the frontend elsewhere you can still set the globals manually before the script loads:
 
 ```html
 <script>
-  window.__SUPERVISOR_API_MODE__ = "live"; // or set via your bundler
+  window.__SUPERVISOR_API_MODE__ = "mock"; // or "live"
   window.__SUPERVISOR_API_BASE__ = "http://localhost:8000"; // FastAPI default
-</script>
-```
-
-In `live` mode the frontend calls the REST endpoints described above. Leaving `window.__SUPERVISOR_API_MODE__` unset (or explicitly `mock`) keeps everything in-memory.
-
-If the backend lives elsewhere, override `window.__SUPERVISOR_API_BASE__` with the appropriate host before the SPA loads, e.g.:
-
-```html
-<script>
-  window.__SUPERVISOR_API_BASE__ = "https://staging.your-domain.com";
 </script>
 ```
 
