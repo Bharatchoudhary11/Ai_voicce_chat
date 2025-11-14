@@ -7,6 +7,11 @@ const state = {
   activityLog: [],
   isSaving: false,
   appReady: false,
+  requestFilter: "all",
+  requestSearch: "",
+  activeChatRequestId: null,
+  kbViewMode: "selection", // 'selection' | 'all'
+  kbSearch: "",
 };
 
 export function getState() {

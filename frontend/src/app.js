@@ -4,7 +4,7 @@ import {
   fetchKnowledgeBase,
   submitResponse,
   markTimeout,
-} from "./api/mockApi.js";
+} from "./api/client.js";
 import { renderRequestList } from "./components/RequestList.js";
 import { renderRequestDetails } from "./components/RequestDetails.js";
 import { renderKnowledgeBase } from "./components/KnowledgeBaseView.js";
@@ -26,6 +26,8 @@ async function bootstrap() {
       selectedRequestId: requests[0]?.id ?? null,
       activityLog: buildInitialActivityLog(requests),
       appReady: true,
+      requestFilter: getState().requestFilter || "all",
+      requestSearch: getState().requestSearch || "",
     });
   } catch (err) {
     console.error("Failed to bootstrap app", err);
@@ -41,38 +43,178 @@ subscribe("root", (state) => {
     return;
   }
 
+  const pendingCount = state.requests.filter((r) => r.status === "pending").length;
+  const resolvedCount = state.requests.filter((r) => r.status === "resolved").length;
+  const unresolvedCount = state.requests.filter((r) => r.status === "unresolved").length;
+  const totalTracked = Math.max(state.requests.length, 1);
+  const liveStatusCopy = state.isSaving ? "Syncing intelligence stream…" : "AI copilots online";
+  const heroMetrics = [
+    {
+      label: "Pending queue",
+      value: pendingCount,
+      filter: "pending",
+      caption: pendingCount === 1 ? "1 client waiting" : `${pendingCount} clients waiting`,
+      progress: pendingCount / totalTracked,
+      emoji: "🛰️",
+    },
+    {
+      label: "Resolved today",
+      value: resolvedCount,
+      filter: "resolved",
+      caption: resolvedCount === 1 ? "1 happy client" : `${resolvedCount} happy clients`,
+      progress: resolvedCount / totalTracked,
+      emoji: "✅",
+    },
+    {
+      label: "Needs follow-up",
+      value: unresolvedCount,
+      filter: "unresolved",
+      caption: unresolvedCount === 1 ? "1 callback due" : `${unresolvedCount} callbacks due`,
+      progress: unresolvedCount / totalTracked,
+      emoji: "📞",
+    },
+  ];
+  const currentFilter = state.requestFilter || "all";
+  const aiStatements = [
+    "AI generated insight: customer anxious about holiday slots.",
+    "Co-pilot drafted reply in 2.1s • supervisor refining tone.",
+    "Knowledge graph expanding • new topic tagged: Color Services.",
+    "Live sentiment: 92% satisfied after AI escalations.",
+  ];
+
   appEl.innerHTML = `
-    <main class="layout">
-      <section class="panel">
-        <header>
-          <h2>Pending Requests</h2>
-        </header>
-        <div class="panel-body" id="request-list"></div>
-      </section>
-      <section class="panel">
-        <header>
-          <h2>Request Details</h2>
-        </header>
-        <div class="panel-body" id="request-details"></div>
-      </section>
-      <section class="panel">
-        <header>
-          <h2>Knowledge Base</h2>
-        </header>
-        <div class="panel-body" id="knowledge-base"></div>
-        <div class="panel-footer" id="activity-log"></div>
-      </section>
-    </main>
+    <div class="app-shell">
+      <header class="console-hero">
+        <div class="console-hero__copy">
+          <p class="console-hero__eyebrow">AI Supervisor Console</p>
+          <h1>Human judgment with AI speed.</h1>
+          <p>Escalations stream in from the salon AI agent, supervisors reply, and every insight feeds the knowledge graph in real time.</p>
+          <div class="console-hero__actions">
+            <button class="btn btn-primary" data-refresh ${state.isSaving ? "disabled" : ""}>
+              ${state.isSaving ? "Syncing…" : "Sync timeline"}
+            </button>
+            <span class="console-hero__status ${state.isSaving ? "is-syncing" : ""}">
+              <span class="console-hero__status-dot"></span>
+              ${liveStatusCopy}
+            </span>
+          </div>
+          <div class="ai-marquee" role="status">
+            <div class="ai-marquee__track">
+              ${aiStatements
+                .map(
+                  (statement) => `
+                    <span class="ai-marquee__item">
+                      <span class="ai-pulse"></span>
+                      ${statement}
+                    </span>
+                  `
+                )
+                .join("")}
+              ${aiStatements
+                .map(
+                  (statement) => `
+                    <span class="ai-marquee__item">
+                      <span class="ai-pulse"></span>
+                      ${statement}
+                    </span>
+                  `
+                )
+                .join("")}
+            </div>
+          </div>
+        </div>
+        <div class="console-hero__indicators" role="group" aria-label="Request quick filters">
+          ${heroMetrics
+            .map(
+              (metric) => `
+                <button
+                  type="button"
+                  class="metric-card ${metric.filter === currentFilter ? "is-active" : ""}"
+                  data-metric-filter="${metric.filter}"
+                  aria-pressed="${metric.filter === currentFilter}"
+                  style="--metric-progress:${Math.min(1, Math.max(metric.progress, 0)).toFixed(2)}"
+                >
+                  <div class="metric-card__heading">
+                    <span class="metric-card__emoji" aria-hidden="true">${metric.emoji}</span>
+                    <p>${metric.label}</p>
+                  </div>
+                  <strong>${metric.value}</strong>
+                  <span>${metric.caption}</span>
+                  <span class="metric-card__progress" role="presentation">
+                    <span class="metric-card__progress-bar"></span>
+                  </span>
+                </button>
+              `
+            )
+            .join("")}
+        </div>
+      </header>
+      <main class="layout">
+        <section class="panel">
+          <header>
+            <h2>Pending Requests</h2>
+          </header>
+          <div class="panel-body" id="request-list"></div>
+        </section>
+        <section class="panel">
+          <header>
+            <h2>Request Details</h2>
+          </header>
+          <div class="panel-body" id="request-details"></div>
+        </section>
+        <section class="panel">
+          <header>
+            <h2>Knowledge Base</h2>
+          </header>
+          <div class="panel-body" id="knowledge-base"></div>
+          <div class="panel-footer" id="activity-log"></div>
+        </section>
+      </main>
+    </div>
   `;
   renderRequestList(document.getElementById("request-list"), state, {
-    onSelect: (id) => setState({ selectedRequestId: id }),
+    onSelect: (id) =>
+      setState({
+        selectedRequestId: id,
+        activeChatRequestId: null,
+      }),
+    onFilterChange: (filter) => setState({ requestFilter: filter }),
+    onSearchChange: (value) => setState({ requestSearch: value }),
   });
   renderRequestDetails(document.getElementById("request-details"), state, {
     onRespond: handleSupervisorResponse,
     onTimeout: handleTimeout,
   });
-  renderKnowledgeBase(document.getElementById("knowledge-base"), state);
+  renderKnowledgeBase(document.getElementById("knowledge-base"), state, {
+    onToggleView: (mode) => setState({ kbViewMode: mode }),
+    onSearch: (value) => setState({ kbSearch: value }),
+  });
   renderActivityLog(document.getElementById("activity-log"), state);
+
+  const refreshBtn = document.querySelector("[data-refresh]");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      if (getState().isSaving) return;
+      setState({ isSaving: true });
+      refreshData({
+        selectedRequestId: getState().selectedRequestId,
+        isSaving: false,
+      }).then(() => {
+        pushActivity("Timeline synced with backend.", "info");
+      }).catch((err) => {
+        console.error("Failed to refresh console", err);
+        pushActivity(`Sync failed: ${err.message}`, "error");
+        setState({ isSaving: false });
+      });
+    });
+  }
+
+  document.querySelectorAll("[data-metric-filter]").forEach((card) => {
+    card.addEventListener("click", () => {
+      const filter = card.dataset.metricFilter;
+      setState({ requestFilter: filter, requestSearch: "" });
+    });
+  });
 });
 
 async function handleSupervisorResponse(payload) {

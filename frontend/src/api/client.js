@@ -1,5 +1,16 @@
-const MODE = (window.__SUPERVISOR_API_MODE__ || "mock").toLowerCase();
-const DEFAULT_BASE_URL = "http://localhost:8000";
+const rawMode = (window.__SUPERVISOR_API_MODE__ || "live").toLowerCase();
+const MODE = rawMode === "mock" ? "mock" : "live";
+
+function resolveDefaultBaseUrl() {
+  if (typeof window === "undefined") return "http://localhost:8000";
+  const origin = window.location && window.location.origin ? window.location.origin : "";
+  if (/localhost|127\.0\.0\.1/.test(origin)) {
+    return origin.replace(/:\d+$/, ":8000");
+  }
+  return "http://localhost:8000";
+}
+
+const DEFAULT_BASE_URL = resolveDefaultBaseUrl();
 const API_BASE_URL = (window.__SUPERVISOR_API_BASE__ || DEFAULT_BASE_URL).replace(/\/$/, "");
 
 function createNetworkApi() {

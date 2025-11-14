@@ -98,6 +98,21 @@ class HelpRequestService:
             kb_entry = KnowledgeBaseEntry.model_validate(kb)
             self.repo.clear_follow_up(orm)
             message = answer
+            closing = self.settings.post_resolution_followup.strip()
+            if closing:
+                closing_message = closing
+                message = (
+                    f"{(answer or '').strip()}".strip()
+                    if answer and answer.strip()
+                    else "I wanted to follow up on your request."
+                )
+                message = message.rstrip()
+                if closing_message:
+                    message = f"{message}\n\n{closing_message}"
+                self.repo.add_history(
+                    orm,
+                    "Auto follow-up: sent reassurance message after resolution.",
+                )
         else:
             minutes = self._normalize_follow_up_minutes(follow_up_minutes)
             follow_up_at = datetime.utcnow() + timedelta(minutes=minutes)

@@ -9,7 +9,7 @@ frontend/
   src/
     app.js             # bootstraps the dashboard and wires components
     store.js           # minimal state container + pub/sub helpers
-    api/mockApi.js     # swappable data layer (mocked for now, live-ready later)
+    api/client.js      # swappable data layer (mock + live REST client)
     components/
       RequestList.js
       RequestDetails.js
@@ -35,7 +35,7 @@ The frontend assumes the following REST-ish endpoints (easy to swap out later):
 
 ### API modes
 
-By default the dashboard now boots in **live** mode so it talks to the FastAPI backend as soon as it is available. The entry point stores your preference in `localStorage`, so once you toggle the mode it will stick across refreshes.
+By default the dashboard boots in **live** mode so every action hits the FastAPI backend immediately. Toggle the mode once (query string below) and it will stick in `localStorage` for future visits.
 
 To force a mode explicitly, append a query string when you load the dashboard (e.g. `http://localhost:5173/?mode=mock`). You can also persist a custom API host via `?apiBase=https://staging.example.com`. These values are cached locally, so once you set them you can remove the query parameters on subsequent visits.
 
